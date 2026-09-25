@@ -117,7 +117,7 @@ class App(tk.Tk):
         self._msg_queue: "queue.Queue[tuple[str, str]]" = queue.Queue()
         self._out_dir = tk.StringVar(value=str(DEFAULT_OUT_DIR))
         self._custom_name = tk.StringVar(value="")
-        self._include_think = tk.BooleanVar(value=True)
+        self._include_think = tk.BooleanVar(value=False)
         self._headless = tk.BooleanVar(value=False)
         self._worker_thread: threading.Thread | None = None
 
@@ -300,7 +300,7 @@ class App(tk.Tk):
 
         opt_frame = ttk.LabelFrame(parent, text="导出选项", padding=10)
         opt_frame.pack(fill="x", pady=(0, 10))
-        ttk.Checkbutton(opt_frame, text="导出思考过程（DeepSeek R1 的思维链）", variable=self._include_think).pack(anchor="w")
+        ttk.Checkbutton(opt_frame, text="导出思考过程（默认关闭：信噪比低，仅保留正式回答更干净）", variable=self._include_think).pack(anchor="w")
         ttk.Checkbutton(opt_frame, text="无头模式（后台运行浏览器，登录时请先取消勾选）", variable=self._headless).pack(anchor="w", pady=(6, 0))
 
         info_frame = ttk.LabelFrame(parent, text="选择器信息", padding=10)
@@ -324,10 +324,41 @@ class App(tk.Tk):
         ttk.Label(path_frame, text=f"浏览器登录数据保存目录：{USER_DATA_DIR}", style="Sub.TLabel").pack(anchor="w")
         ttk.Label(path_frame, text=f"默认导出目录：{DEFAULT_OUT_DIR}", style="Sub.TLabel").pack(anchor="w", pady=(4, 0))
 
+        tool_frame = ttk.LabelFrame(parent, text="后处理工具", padding=10)
+        tool_frame.pack(fill="x", pady=(0, 10))
+        ttk.Label(tool_frame, text="批量去除导出目录中已有 .md 文件的思考过程（<details> 块）：", style="Sub.TLabel").pack(anchor="w")
+        strip_btn_row = ttk.Frame(tool_frame)
+        strip_btn_row.pack(fill="x", pady=(6, 0))
+        if self._icons.btn_icon:
+            ttk.Button(
+                strip_btn_row, text="去除思考过程", image=self._icons.btn_icon,
+                compound="left", style="Icon.TButton", command=self._on_strip_thinking,
+            ).pack(side="left")
+        else:
+            ttk.Button(strip_btn_row, text="去除思考过程", command=self._on_strip_thinking).pack(side="left")
+        ttk.Label(strip_btn_row, text="  处理导出目录下所有 .md 文件", style="Sub.TLabel").pack(side="left", padx=(8, 0))
+
     def _choose_dir(self):
         d = filedialog.askdirectory(initialdir=self._out_dir.get() or str(Path.home()))
         if d:
             self._out_dir.set(d)
+
+    def _on_strip_thinking(self):
+        from .exporter import strip_thinking_from_dir
+        out_dir = Path(self._out_dir.get())
+        if not out_dir.is_dir():
+            messagebox.showwarning("提示", f"导出目录不存在：{out_dir}")
+            return
+        md_files = list(out_dir.glob("*.md"))
+        if not md_files:
+            messagebox.showinfo("提示", "导出目录下没有 .md 文件")
+            return
+        modified = strip_thinking_from_dir(out_dir)
+        if modified:
+            names = "\n".join(f"  · {p.name}" for p in modified)
+            messagebox.showinfo("完成", f"已去除 {len(modified)} 个文件的思考过程：\n{names}")
+        else:
+            messagebox.showinfo("提示", "所有文件均不含思考过程块，无需处理")
 
     def _log(self, text: str):
         self.log_text.configure(state="normal")
@@ -413,6 +444,7 @@ class App(tk.Tk):
 
         def task():
             try:
+                from .exporter import check_duplicate
                 with DeepSeekBrowser(headless=headless) as browser:
                     for i, url in enumerate(urls, 1):
                         self._msg_queue.put(("log", f"[{i}/{len(urls)}] 正在抓取：{url}"))
@@ -426,6 +458,10 @@ class App(tk.Tk):
                         )
                         user_count = sum(1 for t in result.turns if t.role == "user")
                         assistant_count = sum(1 for t in result.turns if t.role == "assistant")
+
+                        dup = check_duplicate(result, out_dir)
+                        if dup:
+                            self._msg_queue.put(("log", f"    ⚠ 检测到相似文件：{dup.name}，仍继续导出"))
 
                         name_for_this = custom_name if custom_name else ""
                         if len(urls) > 1 and not name_for_this:

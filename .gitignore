@@ -10,3 +10,4 @@ build/
 icon.ico
 uv.lock
 .trae/
+log.txt
