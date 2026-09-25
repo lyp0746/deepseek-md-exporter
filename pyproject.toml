@@ -1,0 +1,24 @@
+[project]
+name = "deepseek-exporter"
+version = "0.1.0"
+description = "深寻全录 — 导出 DeepSeek 网页版完整对话为 Markdown"
+requires-python = ">=3.10"
+dependencies = [
+    "playwright>=1.45.0",
+    "Pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+pack = [
+    "pyinstaller>=6.0",
+]
+
+[project.scripts]
+deepseek-exporter = "deepseek_exporter.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/deepseek_exporter"]
