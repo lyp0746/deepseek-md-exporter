@@ -19,6 +19,7 @@ deepseek-promo/out/
 deepseek-promo/.agents/
 deepseek-promo/public/voiceover.mp3
 deepseek-promo/public/voiceover.srt
+deepseek-promo/public/bgm.mp3
 deepseek-promo/package-lock.json
 deepseek-promo/skills-lock.json
 make_voiceover.py

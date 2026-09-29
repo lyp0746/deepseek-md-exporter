@@ -900,6 +900,20 @@ const SRT_CAPTIONS = [
   { startMs: 14329, endMs: 17204, text: "开源免费，Star支持一下" },
 ];
 
+const BgmWithDucking: React.FC = () => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const currentMs = (frame / fps) * 1000;
+
+  const isSpeaking = SRT_CAPTIONS.some(
+    (c) => currentMs >= c.startMs - 200 && currentMs <= c.endMs + 200
+  );
+
+  const bgmVolume = isSpeaking ? 0.12 : 0.30;
+
+  return <Audio src={staticFile("bgm.mp3")} volume={bgmVolume} />;
+};
+
 export const DeepSeekPromo: React.FC = () => {
   return (
     <div
@@ -954,7 +968,8 @@ export const DeepSeekPromo: React.FC = () => {
 
       <CaptionOverlay captions={SRT_CAPTIONS} />
 
-      <Audio src={staticFile("voiceover.mp3")} volume={1} />
+      <Audio src={staticFile("voiceover.mp3")} volume={1.5} />
+      <BgmWithDucking />
     </div>
   );
 };

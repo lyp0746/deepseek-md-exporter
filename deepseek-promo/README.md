@@ -65,7 +65,7 @@ npx remotion render DeepSeekPromo out/video.mp4
 
 ## 配音
 
-使用 Edge TTS（`zh-CN-YunxiNeural`）生成，速率 +10%：
+使用 Edge TTS（`zh-CN-YunxiNeural`）生成，速率 +10%，音量 ×1.5：
 
 ```bash
 edge-tts --voice zh-CN-YunxiNeural --rate "+10%" \
@@ -73,6 +73,25 @@ edge-tts --voice zh-CN-YunxiNeural --rate "+10%" \
   --write-media public/voiceover.mp3 \
   --write-subtitles public/voiceover.srt
 ```
+
+## 背景音乐
+
+使用 FFmpeg 合成简约电子风 BGM（6 层正弦波叠加 + 低通/高通滤波）：
+
+```bash
+ffmpeg -y \
+  -f lavfi -i "sine=frequency=55:duration=18" \
+  -f lavfi -i "sine=frequency=110:duration=18" \
+  ... \
+  -c:a libmp3lame -b:a 128k public/bgm.mp3
+```
+
+### Audio Ducking
+
+BGM 音量根据人声自动调节：
+- **人声段**：BGM → 0.12（不干扰听感）
+- **静音段**：BGM → 0.30（保持节奏感）
+- **200ms 缓冲**：人声前后各留缓冲，避免突变
 
 ## 发布
 
