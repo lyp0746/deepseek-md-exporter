@@ -76,15 +76,14 @@ edge-tts --voice zh-CN-YunxiNeural --rate "+10%" \
 
 ## 背景音乐
 
-使用 FFmpeg 合成简约电子风 BGM（6 层正弦波叠加 + 低通/高通滤波）：
+使用 Python 脚本合成节拍感 BGM（kick + snare + hihat + pad + sub_bass）：
 
 ```bash
-ffmpeg -y \
-  -f lavfi -i "sine=frequency=55:duration=18" \
-  -f lavfi -i "sine=frequency=110:duration=18" \
-  ... \
-  -c:a libmp3lame -b:a 128k public/bgm.mp3
+python gen_bgm.py
+# → public/bgm_gen.wav → public/bgm.mp3
 ```
+
+**注意**：不能用纯 sine 叠加（会变成直线恒定音），必须用脉冲包络产生节拍。
 
 ### Audio Ducking
 

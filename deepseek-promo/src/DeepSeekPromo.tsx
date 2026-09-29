@@ -903,15 +903,19 @@ const SRT_CAPTIONS = [
 const BgmWithDucking: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const currentMs = (frame / fps) * 1000;
 
-  const isSpeaking = SRT_CAPTIONS.some(
-    (c) => currentMs >= c.startMs - 200 && currentMs <= c.endMs + 200
+  const bgmVolumeCallback = React.useCallback(
+    (f: number) => {
+      const currentMs = (f / fps) * 1000;
+      const isSpeaking = SRT_CAPTIONS.some(
+        (c) => currentMs >= c.startMs - 300 && currentMs <= c.endMs + 300
+      );
+      return isSpeaking ? 0.15 : 0.40;
+    },
+    [fps]
   );
 
-  const bgmVolume = isSpeaking ? 0.12 : 0.30;
-
-  return <Audio src={staticFile("bgm.mp3")} volume={bgmVolume} />;
+  return <Audio src={staticFile("bgm.mp3")} volume={bgmVolumeCallback} />;
 };
 
 export const DeepSeekPromo: React.FC = () => {
@@ -968,7 +972,7 @@ export const DeepSeekPromo: React.FC = () => {
 
       <CaptionOverlay captions={SRT_CAPTIONS} />
 
-      <Audio src={staticFile("voiceover.mp3")} volume={1.5} />
+      <Audio src={staticFile("voiceover.mp3")} volume={() => 1.5} />
       <BgmWithDucking />
     </div>
   );
