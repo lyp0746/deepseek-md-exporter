@@ -16,4 +16,5 @@ make_portfolio_cover.py
 make_social_images.py
 deepseek-promo/node_modules/
 deepseek-promo/out/
+deepseek-promo/.agents/
 make_voiceover.py

@@ -10,7 +10,11 @@
   "dependencies": {
     "@remotion/captions": "^4.0.529",
     "@remotion/cli": "^4.0.0",
+    "@remotion/effects": "4.0.529",
+    "@remotion/lottie": "4.0.529",
+    "@remotion/rough-notation": "4.0.529",
     "@remotion/shapes": "^4.0.0",
+    "@remotion/transitions": "4.0.529",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "remotion": "^4.0.0"
