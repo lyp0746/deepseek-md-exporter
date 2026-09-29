@@ -1,49 +1,44 @@
 import React from "react";
 import {
-  AbsoluteFill,
   useCurrentFrame,
   useVideoConfig,
   interpolate,
   spring,
-  Sequence,
-  staticFile,
   Audio,
+  staticFile,
+  Sequence,
 } from "remotion";
 import { TransitionSeries, linearTiming } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
 import { slide } from "@remotion/transitions/slide";
-import { Highlight, Circle } from "@remotion/rough-notation";
-import { parseSrt } from "@remotion/captions";
-import type { Caption } from "@remotion/captions";
 
-const W = 1080;
-const H = 1920;
-const FPS = 30;
-
-const C = {
+const COLORS = {
   bg: "#0D1117",
   surface: "#161B22",
   card: "#21262D",
   border: "#30363D",
-  accent: "#58A6FF",
-  green: "#3FB950",
+  blue: "#58A6FF",
   red: "#F85149",
+  green: "#3FB950",
   orange: "#D29922",
   purple: "#BC8CFF",
   text: "#E6EDF3",
-  muted: "#8B949E",
-  white: "#FFFFFF",
+  gray: "#8B949E",
 };
 
-const springCfg = { mass: 0.6, damping: 14, stiffness: 180 };
+const SPRING = { mass: 0.6, damping: 14, stiffness: 180 };
+const FPS = 30;
 
-function useSpringIn(frame: number, startFrame: number, fps: number) {
-  return spring({ frame: frame - startFrame, fps, ...springCfg });
-}
+const SCENE_DURATIONS = [80, 90, 98, 98, 105, 95];
+const TRANSITION_FRAMES = 10;
+const TOTAL_FRAMES = SCENE_DURATIONS.reduce((a, b) => a + b, 0) - TRANSITION_FRAMES * 5;
 
-const GlowDot: React.FC<{ x: number; y: number; color: string; delay: number }> = ({
-  x, y, color, delay,
-}) => {
+const GlowDot: React.FC<{
+  x: number;
+  y: number;
+  color: string;
+  delay: number;
+}> = ({ x, y, color, delay }) => {
   const frame = useCurrentFrame();
   const opacity = interpolate(frame - delay, [0, 20], [0, 0.6], {
     extrapolateLeft: "clamp",
@@ -71,83 +66,223 @@ const GlowDot: React.FC<{ x: number; y: number; color: string; delay: number }> 
   );
 };
 
+const ParticleField: React.FC<{ count?: number; color?: string }> = ({
+  count = 30,
+  color = COLORS.blue,
+}) => {
+  const particles = React.useMemo(() => {
+    const arr = [];
+    for (let i = 0; i < count; i++) {
+      arr.push({
+        x: Math.random() * 1080,
+        y: Math.random() * 1920,
+        delay: Math.random() * 40,
+        c: [COLORS.blue, COLORS.purple, COLORS.green, color][
+          Math.floor(Math.random() * 4)
+        ],
+      });
+    }
+    return arr;
+  }, [count, color]);
+  return (
+    <>
+      {particles.map((p, i) => (
+        <GlowDot key={i} x={p.x} y={p.y} color={p.c} delay={p.delay} />
+      ))}
+    </>
+  );
+};
+
+const ManimCircle: React.FC<{
+  cx: number;
+  cy: number;
+  r: number;
+  color: string;
+  delay: number;
+}> = ({ cx, cy, r, color, delay }) => {
+  const frame = useCurrentFrame();
+  const progress = interpolate(frame - delay, [0, 30], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const opacity = interpolate(frame - delay, [0, 15], [0, 0.3], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  return (
+    <svg
+      style={{
+        position: "absolute",
+        left: cx - r,
+        top: cy - r,
+        width: r * 2,
+        height: r * 2,
+        opacity,
+      }}
+    >
+      <circle
+        cx={r}
+        cy={r}
+        r={r * progress}
+        fill="none"
+        stroke={color}
+        strokeWidth={2}
+      />
+    </svg>
+  );
+};
+
+const ManimLine: React.FC<{
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+  delay: number;
+}> = ({ x1, y1, x2, y2, color, delay }) => {
+  const frame = useCurrentFrame();
+  const progress = interpolate(frame - delay, [0, 25], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const opacity = interpolate(frame - delay, [0, 15], [0, 0.4], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const cx = x1 + (x2 - x1) * progress;
+  const cy = y1 + (y2 - y1) * progress;
+  return (
+    <svg
+      style={{
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: 1080,
+        height: 1920,
+        opacity,
+        pointerEvents: "none",
+      }}
+    >
+      <line
+        x1={x1}
+        y1={y1}
+        x2={cx}
+        y2={cy}
+        stroke={color}
+        strokeWidth={2}
+      />
+    </svg>
+  );
+};
+
+const PulseGlow: React.FC<{
+  x: number;
+  y: number;
+  color: string;
+  size?: number;
+}> = ({ x, y, color, size = 200 }) => {
+  const frame = useCurrentFrame();
+  const pulse = interpolate(frame, [0, 30], [0.6, 1], {
+    extrapolateRight: "clamp",
+  });
+  const opacity = interpolate(frame, [0, 15], [0, 0.15], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: x - size / 2,
+        top: y - size / 2,
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+        opacity,
+        transform: `scale(${pulse})`,
+      }}
+    />
+  );
+};
+
 const Scene1Hook: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const titleScale = spring({ frame, fps, ...springCfg });
-  const redPulse = interpolate(frame, [20, 35, 50, 65, 80], [1, 1.15, 1, 1.1, 1], {
+  const titleSpring = spring({ frame, fps, ...SPRING });
+  const subtitleOpacity = interpolate(frame, [20, 40], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  const subOpacity = interpolate(frame - 25, [0, 15], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const badgeOpacity = interpolate(frame - 40, [0, 12], [0, 1], {
-    extrapolateLeft: "clamp",
+  const pulseScale = interpolate(frame, [0, 45, 90], [1, 1.05, 1], {
     extrapolateRight: "clamp",
   });
 
   return (
-    <AbsoluteFill style={{ background: C.bg, justifyContent: "center", alignItems: "center" }}>
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden", opacity: 0.15 }}>
-        {Array.from({ length: 20 }).map((_, i) => (
-          <GlowDot
-            key={i}
-            x={50 + (i * 97) % (W - 100)}
-            y={100 + (i * 137) % (H - 200)}
-            color={i % 3 === 0 ? C.accent : i % 3 === 1 ? C.red : C.purple}
-            delay={i * 3}
-          />
-        ))}
-      </div>
+    <div
+      style={{
+        flex: 1,
+        backgroundColor: COLORS.bg,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <ParticleField count={35} color={COLORS.red} />
+      <ManimCircle cx={540} cy={960} r={300} color={COLORS.red} delay={5} />
+      <ManimCircle cx={540} cy={960} r={200} color={COLORS.orange} delay={10} />
+      <PulseGlow x={540} y={960} color={COLORS.red} size={500} />
 
       <div
         style={{
-          fontSize: 120,
+          fontSize: 160,
           fontWeight: 900,
-          color: C.red,
-          transform: `scale(${titleScale * redPulse})`,
-          textShadow: `0 0 40px ${C.red}80, 0 0 80px ${C.red}40`,
-          lineHeight: 1.2,
-          textAlign: "center",
-          padding: "0 40px",
+          color: COLORS.red,
+          transform: `scale(${titleSpring * pulseScale})`,
+          textShadow: `0 0 60px ${COLORS.red}, 0 0 120px rgba(248,81,73,0.3)`,
+          zIndex: 10,
+          letterSpacing: -4,
         }}
       >
-        只能导出
-        <br />
-        <span style={{ fontSize: 160 }}>8 轮？！</span>
+        8轮?!
       </div>
 
       <div
         style={{
-          marginTop: 40,
-          fontSize: 44,
-          color: C.muted,
-          opacity: subOpacity,
-          textAlign: "center",
-        }}
-      >
-        DeepSeek 长对话，导出全丢了
-      </div>
-
-      <div
-        style={{
+          fontSize: 36,
+          color: COLORS.gray,
+          opacity: subtitleOpacity,
           marginTop: 30,
-          padding: "12px 32px",
-          background: `${C.red}20`,
-          border: `2px solid ${C.red}60`,
-          borderRadius: 12,
-          fontSize: 32,
-          color: C.red,
-          opacity: badgeOpacity,
-          fontWeight: 600,
+          zIndex: 10,
         }}
       >
-        ⚠ 前 52 轮全部丢失
+        DeepSeek 官方导出限制
       </div>
-    </AbsoluteFill>
+
+      <div
+        style={{
+          position: "absolute",
+          top: 160,
+          right: 80,
+          fontSize: 28,
+          color: COLORS.red,
+          opacity: interpolate(frame, [15, 30], [0, 0.8], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          }),
+          border: `2px solid ${COLORS.red}`,
+          borderRadius: 8,
+          padding: "8px 16px",
+          zIndex: 10,
+        }}
+      >
+        ⚠ 仅最近8轮
+      </div>
+    </div>
   );
 };
 
@@ -156,96 +291,117 @@ const Scene2Problem: React.FC = () => {
   const { fps } = useVideoConfig();
 
   const lines = [
-    { text: "🧑 提问 1", color: C.accent },
-    { text: "🤖 回答 1", color: C.green },
-    { text: "🧑 提问 2", color: C.accent },
-    { text: "🤖 回答 2", color: C.green },
-    { text: "…", color: C.muted },
-    { text: "🧑 提问 58", color: C.accent, dim: true },
-    { text: "🤖 回答 58", color: C.green, dim: true },
-    { text: "🧑 提问 59", color: C.accent, dim: true },
-    { text: "🤖 回答 59", color: C.green, dim: true },
-    { text: "🧑 提问 60", color: C.accent, dim: true },
-    { text: "🤖 回答 60", color: C.green, dim: true },
+    "第1轮：什么是机器学习？",
+    "第2轮：解释一下神经网络",
+    "第3轮：CNN的原理是什么？",
+    "...",
+    "第58轮：如何优化模型？",
+    "第59轮：损失函数怎么选？",
+    "第60轮：总结一下重点",
   ];
 
-  const titleS = spring({ frame, fps, ...springCfg });
-  const cutLineY = interpolate(frame - 20, [0, 25], [-600, 0], {
+  const cutProgress = interpolate(frame, [30, 70], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   return (
-    <AbsoluteFill style={{ background: C.bg, justifyContent: "center", alignItems: "center" }}>
+    <div
+      style={{
+        flex: 1,
+        backgroundColor: COLORS.bg,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+        padding: 40,
+      }}
+    >
+      <ManimCircle cx={200} cy={400} r={150} color={COLORS.purple} delay={5} />
+      <ManimCircle cx={880} cy={1500} r={120} color={COLORS.blue} delay={8} />
+
       <div
         style={{
-          fontSize: 56,
+          fontSize: 42,
           fontWeight: 700,
-          color: C.text,
-          marginBottom: 50,
-          transform: `scale(${titleS})`,
-        }}
-      >
-        60 轮完整对话
-      </div>
-
-      <div style={{ position: "relative", width: 600, overflow: "hidden" }}>
-        {lines.map((line, i) => {
-          const lineOpacity = interpolate(frame - (8 + i * 4), [0, 10], [0, 1], {
+          color: COLORS.text,
+          marginBottom: 40,
+          opacity: interpolate(frame, [0, 15], [0, 1], {
             extrapolateLeft: "clamp",
             extrapolateRight: "clamp",
-          });
-          const isDim = line.dim;
+          }),
+        }}
+      >
+        60轮对话
+      </div>
+
+      <div style={{ width: 800, zIndex: 10 }}>
+        {lines.map((line, i) => {
+          const lineDelay = i * 5;
+          const lineOpacity = interpolate(
+            frame - lineDelay,
+            [0, 10],
+            [0, 1],
+            { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+          );
+          const isCut = i < lines.length - 3 && cutProgress > (i + 1) / (lines.length - 2);
+          const isKept = i >= lines.length - 3;
+
           return (
             <div
               key={i}
               style={{
-                fontSize: 32,
-                color: line.color,
-                opacity: lineOpacity * (isDim ? 0.4 : 1),
-                padding: "8px 0",
-                fontFamily: "monospace",
-                textDecoration: isDim ? "line-through" : "none",
-                textDecorationColor: isDim ? C.red : undefined,
+                fontSize: 28,
+                color: isCut ? COLORS.gray : isKept ? COLORS.text : COLORS.text,
+                opacity: lineOpacity * (isCut ? 0.3 : 1),
+                padding: "8px 16px",
+                marginBottom: 6,
+                borderRadius: 8,
+                background: isKept
+                  ? `linear-gradient(90deg, ${COLORS.card} 0%, transparent 100%)`
+                  : "transparent",
+                textDecoration: isCut ? "line-through" : "none",
+                transition: "all 0.3s",
               }}
             >
-              {line.text}
+              {line}
             </div>
           );
         })}
-
-        <div
-          style={{
-            position: "absolute",
-            top: cutLineY,
-            left: -20,
-            right: -20,
-            height: 3,
-            background: C.red,
-            boxShadow: `0 0 20px ${C.red}`,
-          }}
-        />
-
-        <div
-          style={{
-            position: "absolute",
-            top: cutLineY + 10,
-            left: 0,
-            right: 0,
-            fontSize: 36,
-            fontWeight: 700,
-            color: C.red,
-            textAlign: "center",
-            opacity: interpolate(frame - 40, [0, 10], [0, 1], {
-              extrapolateLeft: "clamp",
-              extrapolateRight: "clamp",
-            }),
-          }}
-        >
-          ✂ 只剩 8 轮
-        </div>
       </div>
-    </AbsoluteFill>
+
+      <svg
+        style={{
+          position: "absolute",
+          left: 140,
+          top: 400 + cutProgress * 800,
+          width: 800,
+          height: 4,
+          opacity: cutProgress > 0 ? 0.8 : 0,
+          zIndex: 20,
+        }}
+      >
+        <line x1={0} y1={0} x2={800} y2={0} stroke={COLORS.red} strokeWidth={3} />
+      </svg>
+
+      <div
+        style={{
+          fontSize: 36,
+          fontWeight: 700,
+          color: COLORS.red,
+          marginTop: 30,
+          opacity: interpolate(frame, [50, 70], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          }),
+          zIndex: 10,
+        }}
+      >
+        → 只剩8轮?!
+      </div>
+    </div>
   );
 };
 
@@ -253,28 +409,43 @@ const Scene3Solution: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const logoS = spring({ frame, fps, ...springCfg });
-  const subtitleOpacity = interpolate(frame - 15, [0, 12], [0, 1], {
+  const titleSpring = spring({ frame, fps, ...SPRING });
+  const subtitleOpacity = interpolate(frame, [15, 30], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   const steps = [
-    { icon: "📋", text: "粘贴链接" },
-    { icon: "▶️", text: "开始导出" },
-    { icon: "🔄", text: "自动滚动遍历" },
-    { icon: "✅", text: "精确转换" },
+    { icon: "🔑", text: "登录 DeepSeek" },
+    { icon: "📋", text: "粘贴对话链接" },
+    { icon: "▶", text: "一键完整导出" },
   ];
 
   return (
-    <AbsoluteFill style={{ background: C.bg, justifyContent: "center", alignItems: "center" }}>
+    <div
+      style={{
+        flex: 1,
+        backgroundColor: COLORS.bg,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <ParticleField count={20} color={COLORS.blue} />
+      <ManimCircle cx={540} cy={960} r={350} color={COLORS.blue} delay={3} />
+      <PulseGlow x={540} y={800} color={COLORS.blue} size={600} />
+
       <div
         style={{
           fontSize: 80,
           fontWeight: 900,
-          color: C.accent,
-          transform: `scale(${logoS})`,
-          textShadow: `0 0 30px ${C.accent}60`,
+          color: COLORS.blue,
+          transform: `scale(${titleSpring})`,
+          textShadow: `0 0 40px ${COLORS.blue}, 0 0 80px rgba(88,166,255,0.3)`,
+          zIndex: 10,
           letterSpacing: 8,
         }}
       >
@@ -283,126 +454,210 @@ const Scene3Solution: React.FC = () => {
 
       <div
         style={{
-          marginTop: 16,
-          fontSize: 36,
-          color: C.muted,
+          fontSize: 32,
+          color: COLORS.gray,
           opacity: subtitleOpacity,
+          marginTop: 20,
+          zIndex: 10,
         }}
       >
-        一键导出 DeepSeek 全部对话
+        突破8轮限制 · 完整导出
       </div>
 
-      <div style={{ marginTop: 60, display: "flex", flexDirection: "column", gap: 20, alignItems: "center" }}>
+      <div style={{ marginTop: 60, zIndex: 10 }}>
         {steps.map((step, i) => {
-          const s = spring({ frame: frame - (25 + i * 10), fps, ...springCfg });
+          const delay = 25 + i * 15;
+          const stepSpring = spring({
+            frame: frame - delay,
+            fps,
+            ...SPRING,
+          });
+          const stepOpacity = interpolate(frame - delay, [0, 10], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          });
+
           return (
             <div
               key={i}
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 16,
-                padding: "16px 36px",
-                background: C.surface,
-                border: `1px solid ${C.border}`,
+                backgroundColor: COLORS.card,
                 borderRadius: 16,
-                fontSize: 36,
-                color: C.text,
-                transform: `translateY(${(1 - s) * 40}px)`,
-                opacity: s,
-                boxShadow: `0 4px 20px ${C.bg}`,
+                padding: "20px 32px",
+                marginBottom: 16,
+                width: 600,
+                opacity: stepOpacity,
+                transform: `translateY(${(1 - stepSpring) * 40}px)`,
+                borderLeft: `4px solid ${COLORS.blue}`,
               }}
             >
-              <span style={{ fontSize: 40 }}>{step.icon}</span>
-              <span style={{ fontWeight: 600 }}>{step.text}</span>
+              <span style={{ fontSize: 36, marginRight: 20 }}>{step.icon}</span>
+              <span style={{ fontSize: 28, color: COLORS.text, fontWeight: 600 }}>
+                {step.text}
+              </span>
             </div>
           );
         })}
       </div>
-    </AbsoluteFill>
+    </div>
   );
 };
 
-const Scene4Result: React.FC = () => {
+const Scene4Effect: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const leftS = spring({ frame, fps, ...springCfg });
-  const rightS = spring({ frame: frame - 10, fps, ...springCfg });
-  const vsS = spring({ frame: frame - 20, fps, ...springCfg });
-
-  const rightGlow = interpolate(frame - 30, [0, 20], [0, 1], {
+  const beforeSpring = spring({ frame, fps, ...SPRING });
+  const afterSpring = spring({ frame: frame - 30, fps, ...SPRING });
+  const arrowProgress = interpolate(frame, [20, 50], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
+  const beforeItems = Array.from({ length: 8 }, (_, i) => `第${i + 1}轮`);
+  const afterItems = Array.from({ length: 20 }, (_, i) => `第${i + 1}轮`);
+
   return (
-    <AbsoluteFill style={{ background: C.bg, justifyContent: "center", alignItems: "center" }}>
-      <div style={{ display: "flex", gap: 40, alignItems: "center" }}>
-        <div
-          style={{
-            width: 380,
-            padding: "40px 24px",
-            background: C.surface,
-            border: `2px solid ${C.border}`,
-            borderRadius: 20,
-            textAlign: "center",
-            transform: `scale(${leftS})`,
-            opacity: leftS,
-          }}
-        >
-          <div style={{ fontSize: 72, fontWeight: 900, color: C.red }}>8</div>
-          <div style={{ fontSize: 28, color: C.muted, marginTop: 8 }}>轮</div>
-          <div style={{ fontSize: 22, color: C.red, marginTop: 16 }}>❌ 不完整</div>
-        </div>
+    <div
+      style={{
+        flex: 1,
+        backgroundColor: COLORS.bg,
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+        gap: 40,
+        padding: 60,
+      }}
+    >
+      <ManimLine x1={270} y1={600} x2={270} y2={1300} color={COLORS.red} delay={5} />
+      <ManimLine x1={810} y1={400} x2={810} y2={1500} color={COLORS.green} delay={35} />
 
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          transform: `scale(${beforeSpring})`,
+        }}
+      >
         <div
           style={{
-            fontSize: 56,
-            fontWeight: 900,
-            color: C.muted,
-            transform: `scale(${vsS})`,
-            opacity: vsS,
+            fontSize: 32,
+            fontWeight: 700,
+            color: COLORS.red,
+            marginBottom: 20,
           }}
         >
-          VS
+          Before
         </div>
-
         <div
           style={{
+            backgroundColor: COLORS.card,
+            borderRadius: 16,
+            padding: 24,
             width: 380,
-            padding: "40px 24px",
-            background: C.surface,
-            border: `2px solid ${C.green}`,
-            borderRadius: 20,
-            textAlign: "center",
-            transform: `scale(${rightS})`,
-            opacity: rightS,
-            boxShadow: rightGlow > 0 ? `0 0 40px ${C.green}40, 0 0 80px ${C.green}20` : "none",
+            border: `2px solid ${COLORS.red}`,
           }}
         >
-          <div style={{ fontSize: 72, fontWeight: 900, color: C.green }}>60</div>
-          <div style={{ fontSize: 28, color: C.muted, marginTop: 8 }}>轮</div>
-          <div style={{ fontSize: 22, color: C.green, marginTop: 16 }}>✅ 完整无遗漏</div>
+          {beforeItems.map((item, i) => (
+            <div
+              key={i}
+              style={{
+                fontSize: 22,
+                color: COLORS.gray,
+                padding: "4px 8px",
+                opacity: 0.5,
+              }}
+            >
+              {item}
+            </div>
+          ))}
+          <div
+            style={{
+              fontSize: 22,
+              color: COLORS.red,
+              padding: "8px",
+              textAlign: "center",
+              fontWeight: 700,
+            }}
+          >
+            ... 仅8轮
+          </div>
         </div>
       </div>
 
       <div
         style={{
-          marginTop: 50,
-          fontSize: 32,
-          color: C.muted,
-          opacity: interpolate(frame - 40, [0, 12], [0, 1], {
-            extrapolateLeft: "clamp",
-            extrapolateRight: "clamp",
-          }),
-          textAlign: "center",
-          lineHeight: 1.6,
+          fontSize: 60,
+          color: COLORS.green,
+          opacity: arrowProgress,
+          zIndex: 10,
         }}
       >
-        KaTeX 公式 · 代码块 · 表格 — 全部保留
+        →
       </div>
-    </AbsoluteFill>
+
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          transform: `scale(${afterSpring})`,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 32,
+            fontWeight: 700,
+            color: COLORS.green,
+            marginBottom: 20,
+          }}
+        >
+          After
+        </div>
+        <div
+          style={{
+            backgroundColor: COLORS.card,
+            borderRadius: 16,
+            padding: 24,
+            width: 380,
+            border: `2px solid ${COLORS.green}`,
+            boxShadow: `0 0 30px rgba(63,185,80,0.2)`,
+          }}
+        >
+          {afterItems.map((item, i) => (
+            <div
+              key={i}
+              style={{
+                fontSize: 22,
+                color: COLORS.text,
+                padding: "4px 8px",
+              }}
+            >
+              {item}
+            </div>
+          ))}
+          <div
+            style={{
+              fontSize: 22,
+              color: COLORS.green,
+              padding: "8px",
+              textAlign: "center",
+              fontWeight: 700,
+            }}
+          >
+            ... 全部60轮 ✓
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -411,67 +666,100 @@ const Scene5Features: React.FC = () => {
   const { fps } = useVideoConfig();
 
   const features = [
-    { icon: "📦", text: "批量导出", color: C.accent },
-    { icon: "✏️", text: "自定义命名", color: C.purple },
-    { icon: "🔍", text: "自动去重", color: C.green },
-    { icon: "🧹", text: "去除思考过程", color: C.orange },
-    { icon: "🌙", text: "VSCode 暗黑主题", color: C.accent },
-    { icon: "🔄", text: "Playwright 驱动", color: C.purple },
+    { icon: "📋", text: "完整导出", color: COLORS.blue },
+    { icon: "🔄", text: "批量处理", color: COLORS.green },
+    { icon: "🔍", text: "自动去重", color: COLORS.orange },
+    { icon: "🧠", text: "思维链", color: COLORS.purple },
+    { icon: "📝", text: "精确转换", color: COLORS.blue },
+    { icon: "🔐", text: "登录保持", color: COLORS.green },
   ];
 
-  const titleS = spring({ frame, fps, ...springCfg });
-
   return (
-    <AbsoluteFill style={{ background: C.bg, justifyContent: "center", alignItems: "center" }}>
+    <div
+      style={{
+        flex: 1,
+        backgroundColor: COLORS.bg,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+        padding: 60,
+      }}
+    >
+      <ManimCircle cx={540} cy={960} r={400} color={COLORS.purple} delay={3} />
+      <ManimCircle cx={300} cy={600} r={100} color={COLORS.blue} delay={8} />
+      <ManimCircle cx={780} cy={1300} r={120} color={COLORS.green} delay={12} />
+
       <div
         style={{
-          fontSize: 52,
+          fontSize: 44,
           fontWeight: 700,
-          color: C.text,
+          color: COLORS.text,
           marginBottom: 50,
-          transform: `scale(${titleS})`,
+          opacity: interpolate(frame, [0, 15], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          }),
+          zIndex: 10,
         }}
       >
-        不仅如此
+        核心功能
       </div>
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
+          gridTemplateColumns: "1fr 1fr",
           gap: 20,
-          padding: "0 60px",
-          width: "100%",
-          maxWidth: 900,
+          zIndex: 10,
         }}
       >
-        {features.map((f, i) => {
-          const s = spring({ frame: frame - (10 + i * 7), fps, ...springCfg });
+        {features.map((feat, i) => {
+          const delay = 10 + i * 8;
+          const featSpring = spring({
+            frame: frame - delay,
+            fps,
+            ...SPRING,
+          });
+          const featOpacity = interpolate(frame - delay, [0, 10], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          });
+
           return (
             <div
               key={i}
               style={{
+                backgroundColor: COLORS.card,
+                borderRadius: 16,
+                padding: "24px 28px",
                 display: "flex",
                 alignItems: "center",
-                gap: 14,
-                padding: "20px 24px",
-                background: C.surface,
-                border: `1px solid ${C.border}`,
-                borderLeft: `4px solid ${f.color}`,
-                borderRadius: 12,
-                fontSize: 30,
-                color: C.text,
-                transform: `translateY(${(1 - s) * 30}px)`,
-                opacity: s,
+                gap: 16,
+                width: 420,
+                opacity: featOpacity,
+                transform: `scale(${featSpring})`,
+                borderLeft: `4px solid ${feat.color}`,
+                boxShadow: `0 0 20px rgba(0,0,0,0.3)`,
               }}
             >
-              <span style={{ fontSize: 36 }}>{f.icon}</span>
-              <span style={{ fontWeight: 600 }}>{f.text}</span>
+              <span style={{ fontSize: 36 }}>{feat.icon}</span>
+              <span
+                style={{
+                  fontSize: 28,
+                  color: COLORS.text,
+                  fontWeight: 600,
+                }}
+              >
+                {feat.text}
+              </span>
             </div>
           );
         })}
       </div>
-    </AbsoluteFill>
+    </div>
   );
 };
 
@@ -479,29 +767,40 @@ const Scene6CTA: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const logoS = spring({ frame, fps, ...springCfg });
-  const subOpacity = interpolate(frame - 15, [0, 12], [0, 1], {
-    extrapolateLeft: "clamp",
+  const titleSpring = spring({ frame, fps, ...SPRING });
+  const subtitleSpring = spring({ frame: frame - 15, fps, ...SPRING });
+  const breathe = interpolate(frame, [0, 30, 60, 75], [1, 1.08, 1, 1.08], {
     extrapolateRight: "clamp",
   });
-  const urlOpacity = interpolate(frame - 25, [0, 12], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const starPulse = interpolate(frame - 35, [0, 15, 30, 45], [0, 1.2, 0.9, 1], {
+  const starOpacity = interpolate(frame, [25, 40], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
   return (
-    <AbsoluteFill style={{ background: C.bg, justifyContent: "center", alignItems: "center" }}>
+    <div
+      style={{
+        flex: 1,
+        backgroundColor: COLORS.bg,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <ParticleField count={25} color={COLORS.green} />
+      <ManimCircle cx={540} cy={960} r={300} color={COLORS.green} delay={5} />
+      <PulseGlow x={540} y={900} color={COLORS.green} size={500} />
+
       <div
         style={{
-          fontSize: 90,
+          fontSize: 72,
           fontWeight: 900,
-          color: C.accent,
-          transform: `scale(${logoS})`,
-          textShadow: `0 0 40px ${C.accent}60`,
+          color: COLORS.text,
+          transform: `scale(${titleSpring})`,
+          zIndex: 10,
           letterSpacing: 6,
         }}
       >
@@ -510,138 +809,152 @@ const Scene6CTA: React.FC = () => {
 
       <div
         style={{
-          marginTop: 24,
-          fontSize: 36,
-          color: C.muted,
-          opacity: subOpacity,
+          fontSize: 32,
+          color: COLORS.green,
+          marginTop: 20,
+          transform: `scale(${subtitleSpring})`,
+          zIndex: 10,
         }}
       >
-        开源免费 · 开箱即用
+        开源免费 · 完整导出
       </div>
 
       <div
         style={{
-          marginTop: 40,
-          padding: "16px 40px",
-          background: C.surface,
-          border: `1px solid ${C.border}`,
-          borderRadius: 12,
-          fontSize: 28,
-          fontFamily: "monospace",
-          color: C.accent,
-          opacity: urlOpacity,
+          marginTop: 50,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 20,
+          zIndex: 10,
         }}
       >
-        github.com/lyp0746/deepseek-md-exporter
-      </div>
+        <div
+          style={{
+            fontSize: 26,
+            color: COLORS.gray,
+            fontFamily: "Consolas, monospace",
+            opacity: starOpacity,
+          }}
+        >
+          github.com/username/deepseek-md-exporter
+        </div>
 
-      <div
-        style={{
-          marginTop: 30,
-          fontSize: 48,
-          color: C.orange,
-          transform: `scale(${starPulse})`,
-          opacity: urlOpacity,
-        }}
-      >
-        ⭐ Star 支持一下
+        <div
+          style={{
+            fontSize: 48,
+            color: COLORS.orange,
+            opacity: starOpacity,
+            transform: `scale(${breathe})`,
+            textShadow: `0 0 20px ${COLORS.orange}`,
+          }}
+        >
+          ⭐ Star
+        </div>
       </div>
-    </AbsoluteFill>
+    </div>
   );
 };
 
-const srtText = `1\n00:00:00,100 --> 00:00:02,413\nDeepSeek 只能导出8轮？\n\n2\n00:00:02,363 --> 00:00:05,147\n学了60轮，导出只剩8轮\n\n3\n00:00:05,147 --> 00:00:08,079\n深寻全录，一键完整导出\n\n4\n00:00:08,079 --> 00:00:11,090\n8轮对比60轮，完整无遗漏\n\n5\n00:00:11,090 --> 00:00:14,329\n批量导出，自动去重，只留干货\n\n6\n00:00:14,329 --> 00:00:17,204\n开源免费，Star支持一下`;
-
-const { captions: parsedCaptions } = parseSrt({ input: srtText });
-
-const CaptionOverlay: React.FC<{ captions: Caption[] }> = ({ captions }) => {
+const CaptionOverlay: React.FC<{
+  captions: Array<{ startMs: number; endMs: number; text: string }>;
+}> = ({ captions }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const currentMs = (frame / fps) * 1000;
-
   const active = captions.find(
     (c) => currentMs >= c.startMs && currentMs <= c.endMs
   );
-
   if (!active) return null;
-
-  const progress = (currentMs - active.startMs) / (active.endMs - active.startMs);
+  const progress =
+    (currentMs - active.startMs) / (active.endMs - active.startMs);
   const chars = Math.ceil(active.text.length * Math.min(progress * 1.5, 1));
-  const visibleText = active.text.slice(0, chars);
 
   return (
     <div
       style={{
+        position: "absolute",
+        bottom: 120,
+        left: 0,
+        right: 0,
+        textAlign: "center",
         fontSize: 44,
         fontWeight: 700,
-        color: C.white,
-        textShadow: "0 2px 12px rgba(0,0,0,0.9), 0 0 30px rgba(0,0,0,0.5)",
-        textAlign: "center",
-        lineHeight: 1.4,
-        maxWidth: 900,
+        color: "white",
+        textShadow: "0 2px 12px rgba(0,0,0,0.9)",
+        zIndex: 100,
       }}
     >
-      {visibleText}
+      <span>{active.text.slice(0, chars)}</span>
       <span style={{ opacity: 0.3 }}>{active.text.slice(chars)}</span>
     </div>
   );
 };
 
-export const DeepSeekPromo: React.FC = () => {
-  const frame = useCurrentFrame();
+const SRT_CAPTIONS = [
+  { startMs: 100, endMs: 2413, text: "DeepSeek只能导出8轮？" },
+  { startMs: 2363, endMs: 5147, text: "学了60轮，导出只剩8轮" },
+  { startMs: 5147, endMs: 8079, text: "深寻全录，一键完整导出" },
+  { startMs: 8079, endMs: 11090, text: "8轮对比60轮，完整无遗漏" },
+  { startMs: 11090, endMs: 14329, text: "批量导出，自动去重，只留干货" },
+  { startMs: 14329, endMs: 17204, text: "开源免费，Star支持一下" },
+];
 
+export const DeepSeekPromo: React.FC = () => {
   return (
-    <AbsoluteFill style={{ background: C.bg }}>
+    <div
+      style={{
+        width: 1080,
+        height: 1920,
+        backgroundColor: COLORS.bg,
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
       <TransitionSeries>
-        <TransitionSeries.Sequence durationInFrames={90} name="Hook">
+        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS[0]}>
           <Scene1Hook />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition
           presentation={fade()}
-          timing={linearTiming({ durationInFrames: 12 })}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
         />
-        <TransitionSeries.Sequence durationInFrames={100} name="Problem">
+        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS[1]}>
           <Scene2Problem />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition
           presentation={slide()}
-          timing={linearTiming({ durationInFrames: 10 })}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
         />
-        <TransitionSeries.Sequence durationInFrames={100} name="Solution">
+        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS[2]}>
           <Scene3Solution />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition
           presentation={fade()}
-          timing={linearTiming({ durationInFrames: 12 })}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
         />
-        <TransitionSeries.Sequence durationInFrames={90} name="Result">
-          <Scene4Result />
+        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS[3]}>
+          <Scene4Effect />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition
           presentation={slide()}
-          timing={linearTiming({ durationInFrames: 10 })}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
         />
-        <TransitionSeries.Sequence durationInFrames={90} name="Features">
+        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS[4]}>
           <Scene5Features />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition
           presentation={fade()}
-          timing={linearTiming({ durationInFrames: 12 })}
+          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
         />
-        <TransitionSeries.Sequence durationInFrames={75} name="CTA">
+        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS[5]}>
           <Scene6CTA />
         </TransitionSeries.Sequence>
       </TransitionSeries>
+
+      <CaptionOverlay captions={SRT_CAPTIONS} />
+
       <Audio src={staticFile("voiceover.mp3")} volume={1} />
-      <AbsoluteFill
-        style={{
-          justifyContent: "flex-end",
-          alignItems: "center",
-          paddingBottom: 100,
-        }}
-      >
-        <CaptionOverlay captions={parsedCaptions} />
-      </AbsoluteFill>
-    </AbsoluteFill>
+    </div>
   );
 };

@@ -12,10 +12,8 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "rootDir": "./src",
+    "lib": ["ES2018", "DOM"]
   },
-  "include": ["src/**/*", "remotion.config.ts"]
+  "include": ["src/**/*"]
 }
