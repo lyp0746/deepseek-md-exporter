@@ -1,12 +1,15 @@
 import React from "react";
 import {
   AbsoluteFill,
+  Audio,
   useCurrentFrame,
   useVideoConfig,
   interpolate,
   spring,
   Sequence,
+  staticFile,
 } from "remotion";
+import { parseSrt, createTikTokStyleCaptions } from "@remotion/captions";
 
 const COLORS = {
   bg: "#1E1E1E",
@@ -625,8 +628,14 @@ function Scene6CTA() {
   );
 }
 
+const srtText = `1\n00:00:00,100 --> 00:00:02,413\nDeepSeek 只能导出8轮？\n\n2\n00:00:02,363 --> 00:00:05,147\n学了60轮，导出只剩8轮\n\n3\n00:00:05,147 --> 00:00:08,079\n深寻全录，一键完整导出\n\n4\n00:00:08,079 --> 00:00:11,090\n8轮对比60轮，完整无遗漏\n\n5\n00:00:11,090 --> 00:00:14,329\n批量导出，自动去重，只留干货\n\n6\n00:00:14,329 --> 00:00:17,204\n开源免费，Star支持一下`;
+
+const parsedCaptions = parseSrt(srtText);
+const TikTokCaptions = createTikTokStyleCaptions(parsedCaptions);
+
 export const DeepSeekPromo: React.FC = () => {
   const { fps } = useVideoConfig();
+  const frame = useCurrentFrame();
 
   const sceneDurations = [90, 100, 100, 90, 90, 75];
   let offset = 0;
@@ -646,6 +655,16 @@ export const DeepSeekPromo: React.FC = () => {
           <Component />
         </Sequence>
       ))}
+      <Audio src={staticFile("voiceover.mp3")} volume={1} />
+      <AbsoluteFill
+        style={{
+          justifyContent: "flex-end",
+          alignItems: "center",
+          paddingBottom: 120,
+        }}
+      >
+        <TikTokCaptions />
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };
